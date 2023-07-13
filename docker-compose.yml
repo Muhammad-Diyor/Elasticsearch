@@ -26,6 +26,20 @@ services:
     networks:
       - elastic
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.8.0
+    container_name: logstash
+    volumes:
+      - ./logstash/config:/usr/share/logstash/pipeline
+    ports:
+      - 5000:5000
+    depends_on:
+      - elasticsearch
+    environment: 
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    networks:
+      - elastic
+
 networks: 
   elastic: 
     driver: bridge

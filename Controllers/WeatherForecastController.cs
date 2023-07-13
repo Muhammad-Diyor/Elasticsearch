@@ -1,4 +1,7 @@
+using ElasticSearchAPI.Models;
 using Microsoft.AspNetCore.Mvc;
+using Nest;
+using Serilog;
 
 namespace ElasticSearchAPI.Controllers;
 
@@ -6,29 +9,63 @@ namespace ElasticSearchAPI.Controllers;
 [Route("[controller]")]
 public class WeatherForecastController : ControllerBase
 {
-    //
-    private static readonly string[] Summaries = new[]
-    {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-    };
-
     private readonly ILogger<WeatherForecastController> _logger;
+    private readonly IElasticClient _elasticClient;
 
-    public WeatherForecastController(ILogger<WeatherForecastController> logger)
+    public WeatherForecastController(ILogger<WeatherForecastController> logger, IElasticClient elasticClient)
     {
         _logger = logger;
+        _elasticClient = elasticClient;
     }
 
-    [HttpGet(Name = "GetWeatherForecast")]
-    public IEnumerable<WeatherForecast> Get()
+    [HttpGet]
+    public async Task<IActionResult> CreateProduct()
     {
-        _logger.LogInformation("Hi, it's get endpoint");
-        return Enumerable.Range(1, 5).Select(index => new WeatherForecast
+        _logger.LogInformation("Hi, it's the get endpoint");
+        var product = new Product { Id = Guid.NewGuid(), Name = "Sample Product" };
+        // save data in pg
+        var response = await _elasticClient.IndexAsync(product, idx => idx.Index("products"));
+        if (response.IsValid)
         {
-            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = Summaries[Random.Shared.Next(Summaries.Length)]
-        })
-        .ToArray();
+            Log.Information("Indexing completed successfully");
+        }
+        else
+        {
+            Log.Error("Indexing failed");
+        }
+
+        return Ok(response);
+    }
+
+    [HttpGet( "GetAllProducts")]
+    public async Task<IActionResult> CheckElasticSearch()
+    {
+        _logger.LogInformation("Hi, it's the checkElastic endpoint");
+
+        var elasticHealth = _elasticClient.Search<Product>(s =>
+            s.Index("products"));
+        return Ok(elasticHealth.Documents);
+    }
+
+    [HttpGet("GetCount")]
+    public async Task<IActionResult> GetCount()
+    {
+        _logger.LogInformation("Hi, it's the checkElastic endpoint");
+
+        var countOfEntries = (await _elasticClient.CountAsync<Product>(s =>
+            s.Index("products"))).Count;
+        return Ok(countOfEntries);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> PostProduct(string name, int quantity, int loopTimes)
+    {
+        for (int i = 0; i < loopTimes; i++)
+        {
+            var product = new Product { Id = Guid.NewGuid(), Name = name, Quantity = quantity, };
+            await _elasticClient.IndexAsync(product, indexDescriptor => indexDescriptor.Index("products"));
+        }
+        
+        return Ok();
     }
 }

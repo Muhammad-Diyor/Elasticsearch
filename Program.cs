@@ -1,4 +1,4 @@
-using System.Reflection;
+using Nest;
 using Serilog;
 using Serilog.Exceptions;
 using Serilog.Sinks.Elasticsearch;
@@ -8,9 +8,15 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
+var elasticSettings = new ConnectionSettings(new Uri("http://localhost:9200"));
+var elasticClient = new ElasticClient(elasticSettings);
+
+builder.Services.AddSingleton<IElasticClient>(elasticClient);
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen();
 
 ConfigureLogging();
@@ -47,6 +53,7 @@ void ConfigureLogging()
         .WriteTo.Debug()
         .WriteTo.Console()
         .WriteTo.Elasticsearch(ConfigureElasticSink(configuration, environment))
+        .WriteTo.Http("http://localhost:5000/logs", 100, period: TimeSpan.FromSeconds(2))
         .WriteTo.TeleSink("5843621363:AAFiycHoNHeFGUzGmKrczcOWJCd1b82hWJo", "-1001912603201")
         .CreateLogger();
 
@@ -57,7 +64,7 @@ void ConfigureLogging()
         return new ElasticsearchSinkOptions(new Uri("http://localhost:9200"))
         {
             AutoRegisterTemplate = true,
-            IndexFormat = $"{Assembly.GetExecutingAssembly().GetName().Name.ToLower().Replace(".", "-")}-{environment.ToLower()}-{DateTime.Now}",
+            IndexFormat = "test",
             NumberOfReplicas = 1,
             NumberOfShards = 2
         };
